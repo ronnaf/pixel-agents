@@ -16,6 +16,8 @@ import {
   BUTTON_SHADOW_COLOR,
   CARPET_DEFAULT_ACCENT_COLOR,
   CARPET_DEFAULT_COLOR,
+  CARRIED_CUP_OFFSET_X_PX,
+  CARRIED_CUP_OFFSET_Y_PX,
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
   DELETE_BUTTON_BG,
@@ -53,7 +55,11 @@ import {
 } from '../sprites/carpetTiles.js';
 import { getPetSprites } from '../sprites/petSpriteData.js';
 import { getCachedSprite, getOutlineSprite } from '../sprites/spriteCache.js';
-import { BUBBLE_HEART_SPRITE, getCharacterSprites } from '../sprites/spriteData.js';
+import {
+  BUBBLE_HEART_SPRITE,
+  CARRIED_CUP_SPRITE,
+  getCharacterSprites,
+} from '../sprites/spriteData.js';
 import type {
   AreaDefinition,
   CarpetTile,
@@ -64,7 +70,15 @@ import type {
   SpriteData,
   TileType as TileTypeVal,
 } from '../types.js';
-import { CharacterState, TILE_SIZE, TileType } from '../types.js';
+import { CharacterState, Direction, TILE_SIZE, TileType } from '../types.js';
+
+/** Which side a carried cup shows on, by the way its character faces: facing up, the
+ *  body hides it. */
+const CUP_SIDE_BY_DIRECTION: Partial<Record<Direction, keyof typeof CARRIED_CUP_OFFSET_X_PX>> = {
+  [Direction.DOWN]: 'down',
+  [Direction.RIGHT]: 'right',
+  [Direction.LEFT]: 'left',
+};
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles.js';
 import { getCharacterSprite } from './characters.js';
 import { renderMatrixEffect } from './matrixEffect.js';
@@ -461,6 +475,23 @@ export function renderScene(
         c.restore();
       },
     });
+
+    // A cup in hand, drawn over the character while it walks or stands with one.
+    const cupSide = CUP_SIDE_BY_DIRECTION[ch.dir];
+    if (ch.carryingCup && cupSide && ch.state !== CharacterState.TYPE) {
+      const cup = getCachedSprite(CARRIED_CUP_SPRITE, zoom);
+      const cupX = Math.round(offsetX + (ch.x + CARRIED_CUP_OFFSET_X_PX[cupSide]) * zoom);
+      const cupY = Math.round(offsetY + (ch.y - CARRIED_CUP_OFFSET_Y_PX) * zoom);
+      drawables.push({
+        zY: charZY,
+        draw: (c) => {
+          c.save();
+          c.globalAlpha = alpha;
+          c.drawImage(cup, cupX, cupY);
+          c.restore();
+        },
+      });
+    }
   }
 
   // ── Pets ──────────────────────────────────────────────

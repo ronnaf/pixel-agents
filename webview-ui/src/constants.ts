@@ -15,8 +15,19 @@ export const WANDER_PAUSE_MIN_SEC = 2.0;
 export const WANDER_PAUSE_MAX_SEC = 20.0;
 export const WANDER_MOVES_BEFORE_REST_MIN = 3;
 export const WANDER_MOVES_BEFORE_REST_MAX = 6;
-export const SEAT_REST_MIN_SEC = 120.0;
-export const SEAT_REST_MAX_SEC = 240.0;
+export const SEAT_REST_MIN_SEC = 8.0;
+export const SEAT_REST_MAX_SEC = 20.0;
+/** How likely an idle stroll is an errand to a free appliance instead of a random tile. */
+export const APPLIANCE_ERRAND_CHANCE = 0.7;
+export const APPLIANCE_USE_MIN_SEC = 4.0;
+export const APPLIANCE_USE_MAX_SEC = 9.0;
+/** A game lasts longer than other appliance use: the first player waits for a second. */
+export const GAME_USE_MIN_SEC = 14.0;
+export const GAME_USE_MAX_SEC = 22.0;
+/** Where a carried cup is drawn from a character's anchor (bottom centre), in sprite pixels:
+ *  across by the way it faces (never drawn facing up, where the body hides it), and up. */
+export const CARRIED_CUP_OFFSET_X_PX = { down: 3, right: 3, left: -8 } as const;
+export const CARRIED_CUP_OFFSET_Y_PX = 13;
 /** A helper (sub-agent) stays within this many tiles of its lead, any direction. */
 export const HELPER_FOLLOW_RADIUS_TILES = 2;
 /** A helper between two tool calls keeps sitting; it stands only after waiting this long. */
@@ -750,7 +761,7 @@ export const CONVERSATIONS_REFRESH_INTERVAL_MS = 30_000;
 /** The phone's conversations panel: most of the screen, the office peeking beside it. */
 export const MOBILE_CONVERSATIONS_WIDTH = 'min(340px, 85vw)';
 /** Conversations in the list's "Recent" section, across every Directory. */
-export const RECENT_CONVERSATIONS_COUNT = 5;
+export const RECENT_CONVERSATIONS_COUNT = 20;
 /** Conversations a Directory lists until "Show more", running ones included (the server's CONVERSATIONS_PER_DIRECTORY). */
 export const CONVERSATIONS_PER_DIRECTORY = 5;
 /** How many more each "Show more" press lists. */

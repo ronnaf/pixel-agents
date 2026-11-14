@@ -22,6 +22,7 @@ import {
   NEW_CONVERSATION_TITLE,
   PIXEL_AGENTS_DIR,
 } from './constants.js';
+import type { HostDirectoryEntry } from './directories.js';
 import { transcriptSuffix } from './directorySuggestions.js';
 import { writeJsonAtomic } from './jsonFileWatcher.js';
 import type { AgentState } from './types.js';
@@ -194,6 +195,55 @@ export function liveSessions(store: AgentStateStore): Map<string, LiveSession> {
         { agentId: id, palette: agent.palette, repeat: agent.repeat },
       ]),
   );
+}
+
+/** Each session directory's working directory, once read: it never changes. */
+const workingDirectories = new Map<string, string>();
+
+/** How much of a transcript is read for its working directory. Its opening lines can run
+ *  to tens of kilobytes before the first one that records a `cwd`. */
+const WORKING_DIRECTORY_SCAN_BYTES = 262_144;
+
+/** The working directory a transcript's session started in: its first `cwd` field. */
+function transcriptWorkingDirectory(file: string): string | undefined {
+  let head: string;
+  try {
+    const fd = fs.openSync(file, 'r');
+    try {
+      const buffer = Buffer.alloc(WORKING_DIRECTORY_SCAN_BYTES);
+      head = buffer.toString('utf-8', 0, fs.readSync(fd, buffer, 0, buffer.length, 0));
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return undefined;
+  }
+  const match = /"cwd":("(?:[^"\\]|\\.)*")/.exec(head);
+  if (!match) return undefined;
+  try {
+    const cwd: unknown = JSON.parse(match[1]);
+    return typeof cwd === 'string' && cwd.length > 0 ? cwd : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The folders the office's agents are running in, to list beside the Directories. A session
+ * started somewhere that was never added as a Directory (a new git worktree, say) then shows
+ * in the sidebar for as long as its agent is in the office.
+ */
+export function liveDirectories(store: AgentStateStore): HostDirectoryEntry[] {
+  const paths = new Set<string>();
+  for (const [, agent] of store) {
+    if (!runsOwnSession(agent, store)) continue;
+    const cwd =
+      workingDirectories.get(agent.projectDir) ?? transcriptWorkingDirectory(agent.jsonlFile);
+    if (cwd === undefined) continue;
+    workingDirectories.set(agent.projectDir, cwd);
+    paths.add(path.resolve(cwd));
+  }
+  return [...paths].map((directory) => ({ name: path.basename(directory), path: directory }));
 }
 
 /** A resumable session id: a UUID, never anything a CLI could read as a flag. */

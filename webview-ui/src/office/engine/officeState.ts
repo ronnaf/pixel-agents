@@ -28,6 +28,7 @@ import { pairWorkstations } from '../layout/workstations.js';
 import { getPetCount, getPetName } from '../sprites/petSpriteData.js';
 import { getLoadedCharacterCount } from '../sprites/spriteData.js';
 import type {
+  ApplianceSpot,
   Character,
   FurnitureInstance,
   OfficeLayout,
@@ -38,6 +39,7 @@ import type {
   TileType as TileTypeVal,
 } from '../types.js';
 import { CharacterState, Direction, PetState, TILE_SIZE } from '../types.js';
+import { findApplianceSpots } from './appliances.js';
 import { tickBlink } from './blink.js';
 import { createCharacter, restInChair, updateCharacter, updateHelper } from './characters.js';
 import { advanceMatrixEffect, startMatrixEffect } from './matrixEffectState.js';
@@ -935,13 +937,40 @@ export class OfficeState {
     this.rebuildFurnitureInstances();
   }
 
+  /** An appliance spot no character is standing on or headed for, or null. */
+  private pickApplianceSpot(): ApplianceSpot | null {
+    const taken = new Set<string>();
+    for (const ch of this.characters.values()) {
+      taken.add(`${ch.tileCol},${ch.tileRow}`);
+      if (ch.errand) taken.add(`${ch.errand.col},${ch.errand.row}`);
+    }
+    const spots = findApplianceSpots(this.layout.furniture, this.walkableTiles);
+    const isTaken = (spot: ApplianceSpot) => taken.has(`${spot.col},${spot.row}`);
+    const free = spots.filter((spot) => !isTaken(spot));
+    // Someone waiting at a game for a second player comes first.
+    const openGames = free.filter(
+      (spot) =>
+        spot.kind === 'game' && spots.some((other) => other.uid === spot.uid && isTaken(other)),
+    );
+    const choices = openGames.length > 0 ? openGames : free;
+    return choices.length > 0 ? choices[Math.floor(Math.random() * choices.length)] : null;
+  }
+
   /**
-   * The PCs whose seat has an agent working at it: active, sitting in that
+   * The appliances in use, and the PCs whose seat has an agent working at it: active, sitting in that
    * seat and typing. Walking to the seat, resting there between turns, or
    * standing beside it does not count.
    */
   private litWorkstations(): Set<string> {
     const lit = new Set<string>();
+    // A game shows its in-use state only once both players are at it.
+    const users = [...this.characters.values()].flatMap((ch) =>
+      ch.state === CharacterState.USE && ch.errand ? [ch.errand] : [],
+    );
+    for (const errand of users) {
+      const players = users.filter((other) => other.uid === errand.uid).length;
+      if (errand.kind !== 'game' || players > 1) lit.add(errand.uid);
+    }
     for (const ch of this.characters.values()) {
       if (!ch.isActive || !ch.seatId || ch.state !== CharacterState.TYPE || ch.matrixEffect) {
         continue;
@@ -1235,7 +1264,15 @@ export class OfficeState {
       } else {
         // Temporarily unblock own seat so character can pathfind to it
         this.withOwnSeatUnblocked(ch, () =>
-          updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles),
+          updateCharacter(
+            ch,
+            dt,
+            this.walkableTiles,
+            this.seats,
+            this.tileMap,
+            this.blockedTiles,
+            () => this.pickApplianceSpot(),
+          ),
         );
       }
 

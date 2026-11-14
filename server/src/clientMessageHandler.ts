@@ -24,6 +24,7 @@ import {
   conversationLimitsFrom,
   conversationQueryFrom,
   listConversations,
+  liveDirectories,
   liveSessions,
   recordConversationLooks,
   resumeRequest,
@@ -205,7 +206,7 @@ export function handleClientMessage(
       send({
         type: 'conversationsLoaded',
         directories: listConversations(
-          listDirectories(shownHostDirectoriesFor(ctx)),
+          listDirectories([...liveDirectories(store), ...shownHostDirectoriesFor(ctx)]),
           conversationProvider,
           liveSessions(store),
           conversationLimitsFrom(msg.limits),
@@ -222,7 +223,7 @@ export function handleClientMessage(
         type: 'conversationSearchResults',
         ...query,
         ...searchConversations(
-          listDirectories(shownHostDirectoriesFor(ctx)),
+          listDirectories([...liveDirectories(store), ...shownHostDirectoriesFor(ctx)]),
           conversationProvider,
           liveSessions(store),
           query,

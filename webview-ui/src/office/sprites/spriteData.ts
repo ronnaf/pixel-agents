@@ -23,6 +23,17 @@ export const BUBBLE_PERMISSION_SPRITE: SpriteData = resolveBubbleSprite(bubblePe
 /** Waiting bubble: white square with green checkmark, and a tail pointer (11x13) */
 export const BUBBLE_WAITING_SPRITE: SpriteData = resolveBubbleSprite(bubbleWaitingData);
 
+/** The cup a character carries away from a drinks appliance (5x5): white with a dark
+ *  outline, so it shows against any shirt. */
+const CUP_EDGE = '#3a3340';
+export const CARRIED_CUP_SPRITE: SpriteData = [
+  [CUP_EDGE, CUP_EDGE, CUP_EDGE, CUP_EDGE, ''],
+  [CUP_EDGE, '#6b4a3a', '#6b4a3a', CUP_EDGE, CUP_EDGE],
+  [CUP_EDGE, '#ffffff', '#ffffff', CUP_EDGE, CUP_EDGE],
+  [CUP_EDGE, '#ffffff', '#ffffff', CUP_EDGE, ''],
+  ['', CUP_EDGE, CUP_EDGE, '', ''],
+];
+
 /** Heart bubble: pet petting feedback (11x13) */
 export const BUBBLE_HEART_SPRITE: SpriteData = resolveBubbleSprite(bubblePetData);
 

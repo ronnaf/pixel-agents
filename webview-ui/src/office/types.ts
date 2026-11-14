@@ -30,6 +30,8 @@ export const CharacterState = {
   IDLE: 'idle',
   WALK: 'walk',
   TYPE: 'type',
+  /** Standing at an appliance, using it. */
+  USE: 'use',
 } as const;
 export type CharacterState = (typeof CharacterState)[keyof typeof CharacterState];
 
@@ -175,6 +177,19 @@ export interface Blinker {
   blinkShut: number;
 }
 
+/** A tile a character stands on to use an appliance (office/engine/appliances.ts). */
+export interface ApplianceSpot {
+  /** The appliance's furniture uid. */
+  uid: string;
+  col: number;
+  row: number;
+  /** The way a character on the tile faces the appliance. */
+  facingDir: Direction;
+  /** `drink`: using it hands the character a cup. `game`: it is played from both its
+   *  spots at once, and shows its in-use state only while both are taken. */
+  kind?: 'drink' | 'game';
+}
+
 export interface Character extends Blinker {
   id: number;
   state: CharacterState;
@@ -222,6 +237,12 @@ export interface Character extends Blinker {
   bubbleTimer: number;
   /** Timer to stay seated while inactive after seat reassignment (counts down to 0) */
   seatTimer: number;
+  /** The appliance spot an idle character is walking to or using, or null. */
+  errand: ApplianceSpot | null;
+  /** Time left using the appliance (counts down to 0 in the USE state). */
+  useTimer: number;
+  /** Whether it is carrying a cup from a drinks appliance, until it next sits or uses one. */
+  carryingCup: boolean;
   /** Whether this character represents a sub-agent (spawned by Task tool) */
   isSubagent: boolean;
   /** A helper's time since its last tool call ended (0 while working). */

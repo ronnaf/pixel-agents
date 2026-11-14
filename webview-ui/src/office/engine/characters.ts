@@ -1,5 +1,10 @@
 import {
+  APPLIANCE_ERRAND_CHANCE,
+  APPLIANCE_USE_MAX_SEC,
+  APPLIANCE_USE_MIN_SEC,
   DEFAULT_MAX_CONTEXT_TOKENS,
+  GAME_USE_MAX_SEC,
+  GAME_USE_MIN_SEC,
   HELPER_FOLLOW_RADIUS_TILES,
   HELPER_STAND_UP_DELAY_SEC,
   SEAT_REST_MAX_SEC,
@@ -15,7 +20,13 @@ import {
 import { findPath } from '../layout/tileMap.js';
 import type { CharacterSprites } from '../sprites/spriteData.js';
 import { isReadingToolName } from '../toolUtils.js';
-import type { Character, Seat, SpriteData, TileType as TileTypeVal } from '../types.js';
+import type {
+  ApplianceSpot,
+  Character,
+  Seat,
+  SpriteData,
+  TileType as TileTypeVal,
+} from '../types.js';
 import { CharacterState, Direction, TILE_SIZE } from '../types.js';
 import { startBlink } from './blink.js';
 
@@ -82,6 +93,9 @@ export function createCharacter(
     bubbleType: null,
     bubbleTimer: 0,
     seatTimer: 0,
+    errand: null,
+    useTimer: 0,
+    carryingCup: false,
     isSubagent: false,
     helperIdleSec: 0,
     parentAgentId: null,
@@ -94,6 +108,10 @@ export function createCharacter(
   };
 }
 
+/**
+ * A lead agent for one frame. `pickAppliance` names a free appliance spot for an idle
+ * stroll to end at, or null when there is none.
+ */
 export function updateCharacter(
   ch: Character,
   dt: number,
@@ -101,11 +119,14 @@ export function updateCharacter(
   seats: Map<string, Seat>,
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
+  pickAppliance: () => ApplianceSpot | null = () => null,
 ): void {
   ch.frameTimer += dt;
 
   switch (ch.state) {
     case CharacterState.TYPE: {
+      // Sat down: the cup goes on the desk
+      ch.carryingCup = false;
       if (ch.frameTimer >= TYPE_FRAME_DURATION_SEC) {
         ch.frameTimer -= TYPE_FRAME_DURATION_SEC;
         ch.frame = (ch.frame + 1) % 2;
@@ -191,8 +212,10 @@ export function updateCharacter(
             }
           }
         }
-        if (walkableTiles.length > 0) {
-          const target = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+        // Most strolls are an errand to an appliance; the rest go anywhere.
+        const errand = Math.random() < APPLIANCE_ERRAND_CHANCE ? pickAppliance() : null;
+        if (errand || walkableTiles.length > 0) {
+          const target = errand ?? walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
           const path = findPath(
             ch.tileCol,
             ch.tileRow,
@@ -208,6 +231,7 @@ export function updateCharacter(
             ch.frame = 0;
             ch.frameTimer = 0;
             ch.wanderCount++;
+            ch.errand = errand;
           }
         }
         ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC);
@@ -228,6 +252,8 @@ export function updateCharacter(
         ch.x = center.x;
         ch.y = center.y;
 
+        const errand = ch.errand;
+        ch.errand = null;
         if (ch.isActive) {
           if (!ch.seatId) {
             // No seat — type in place
@@ -265,8 +291,20 @@ export function updateCharacter(
               break;
             }
           }
-          ch.state = CharacterState.IDLE;
-          ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC);
+          if (errand && ch.tileCol === errand.col && ch.tileRow === errand.row) {
+            // Arrived at the appliance — use it for a while
+            ch.errand = errand;
+            ch.state = CharacterState.USE;
+            ch.dir = errand.facingDir;
+            ch.carryingCup = false;
+            ch.useTimer =
+              errand.kind === 'game'
+                ? randomRange(GAME_USE_MIN_SEC, GAME_USE_MAX_SEC)
+                : randomRange(APPLIANCE_USE_MIN_SEC, APPLIANCE_USE_MAX_SEC);
+          } else {
+            ch.state = CharacterState.IDLE;
+            ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC);
+          }
         }
         ch.frame = 0;
         ch.frameTimer = 0;
@@ -295,6 +333,29 @@ export function updateCharacter(
             }
           }
         }
+      }
+      break;
+    }
+
+    case CharacterState.USE: {
+      // The typing frames, standing: hands working the appliance
+      if (ch.frameTimer >= TYPE_FRAME_DURATION_SEC) {
+        ch.frameTimer -= TYPE_FRAME_DURATION_SEC;
+        ch.frame = (ch.frame + 1) % 2;
+      }
+      ch.useTimer -= dt;
+      // Done, or called back to work: the IDLE state walks an active agent to its seat
+      if (ch.isActive || ch.useTimer <= 0) {
+        if (ch.errand?.kind === 'drink' && ch.useTimer <= 0) {
+          // Takes the drink back to its desk: the next stroll is the walk home
+          ch.carryingCup = true;
+          ch.wanderCount = ch.wanderLimit;
+        }
+        ch.errand = null;
+        ch.state = CharacterState.IDLE;
+        ch.frame = 0;
+        ch.frameTimer = 0;
+        ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC);
       }
       break;
     }
@@ -436,6 +497,8 @@ export function getCharacterSprite(ch: Character, sprites: CharacterSprites): Sp
       return sprites.walk[ch.dir][ch.frame % 4];
     case CharacterState.IDLE:
       return sprites.walk[ch.dir][1];
+    case CharacterState.USE:
+      return sprites.typing[ch.dir][ch.frame % 2];
     default:
       return sprites.walk[ch.dir][1];
   }

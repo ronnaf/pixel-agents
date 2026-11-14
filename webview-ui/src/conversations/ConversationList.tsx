@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
 
 import type { Conversation, DirectoryConversations } from '../../../core/src/messages.js';
 import type { TabStatus } from '../components/AgentCard.js';
@@ -7,15 +6,7 @@ import { CharacterMugShot } from '../components/CharacterMugShot.js';
 import { STATUS_DOT } from '../components/statusDot.js';
 import { PixelIcon } from '../components/ui/PixelIcon.js';
 import { PixelText } from '../components/ui/PixelText.js';
-import {
-  CONVERSATION_EXPANDED_KEY,
-  CONVERSATION_UNFOLD_MS,
-  CONVERSATIONS_PER_DIRECTORY,
-  CONVERSATIONS_SHOW_MORE_STEP,
-  MUGSHOT_CROP_SIDE_PX,
-  RECENT_CONVERSATIONS_COUNT,
-} from '../constants.js';
-import { prefersReducedMotion } from '../hooks/usePresence.js';
+import { MUGSHOT_CROP_SIDE_PX, RECENT_CONVERSATIONS_COUNT } from '../constants.js';
 import { recentAcross } from './recent.js';
 import { timeAgo } from './timeAgo.js';
 import { type ConversationLimits, useConversations } from './useConversations.js';
@@ -41,12 +32,13 @@ export interface ConversationSearchScope {
   directoryName?: string;
 }
 
+/** Every Directory lists its default number of conversations: "Recent" draws on those. */
+const DEFAULT_LIMITS: ConversationLimits = {};
+
 /**
  * The recent conversations, shared by the desktop sidebar and the phone's
- * panel: first the newest across every Directory ("Recent", each with its
- * Directory's name), then each Directory's own last conversations under a
- * header that expands and collapses it (one open at a time, collapsed until
- * this viewer opens it; remembered per browser). Titled as the coding agent
+ * panel: the newest across every Directory ("Recent", each with its
+ * Directory's name). Titled as the coding agent
  * titles them, each with a mug shot of the character its agent wore. One an
  * agent in the office is running shows its status dot, and pressing it goes
  * to that agent; pressing a past one resumes it.
@@ -64,23 +56,7 @@ export function ConversationList({
     conversation.agentId !== undefined
       ? onOpenAgent(conversation.agentId)
       : onResume(conversation.sessionId, directory.path);
-  // Conversations per Directory beyond the default five ("Show more"):
-  // forgotten when a section opens or shuts, and on reload.
-  const [limits, setLimits] = useState<ConversationLimits>({});
-  const list = useConversations(open, limits);
-  // One open at a time: opening a Directory shuts the one that was open.
-  const [openPath, setOpenPath] = useState(storedOpenPath);
-  const toggle = (path: string) => {
-    const next = openPath === path ? null : path;
-    storeOpenPath(next);
-    setOpenPath(next);
-    setLimits({});
-  };
-  const showMore = (path: string) =>
-    setLimits((prev) => ({
-      ...prev,
-      [path]: (prev[path] ?? CONVERSATIONS_PER_DIRECTORY) + CONVERSATIONS_SHOW_MORE_STEP,
-    }));
+  const list = useConversations(open, DEFAULT_LIMITS);
 
   // flex-1 even while empty: whatever sits below the list stays at the bottom.
   if (list === null || list.directories.length === 0) {
@@ -95,7 +71,7 @@ export function ConversationList({
   return (
     <div className="flex-1 min-h-0 quiet-scrollbar">
       {onSearch && <SearchField onPress={() => onSearch({})} roomy={roomy} />}
-      <section data-testid="recent-conversations" className="pb-6 border-b-2 border-border">
+      <section data-testid="recent-conversations" className="pb-6">
         <SectionHeading
           action={
             onSearch && recent.length > 0 ? (
@@ -123,24 +99,6 @@ export function ConversationList({
           ))
         )}
       </section>
-      <SectionHeading>By Directory</SectionHeading>
-      {list.directories.map((directory) => (
-        <DirectorySection
-          key={directory.path}
-          directory={directory}
-          expanded={openPath === directory.path}
-          onToggle={() => toggle(directory.path)}
-          now={now}
-          press={press}
-          statusFor={statusFor}
-          roomy={roomy}
-          onShowMore={() => showMore(directory.path)}
-          onSearch={
-            onSearch &&
-            (() => onSearch({ directoryPath: directory.path, directoryName: directory.name }))
-          }
-        />
-      ))}
     </div>
   );
 }
@@ -195,175 +153,6 @@ function SectionHeading({ children, action }: { children: string; action?: React
       {action}
     </div>
   );
-}
-
-/** The open Directory, stored as `[path]` (or `[]`). */
-function storedOpenPath(): string | null {
-  try {
-    const raw = JSON.parse(localStorage.getItem(CONVERSATION_EXPANDED_KEY) ?? '[]') as unknown;
-    const paths = Array.isArray(raw) ? raw.filter((p): p is string => typeof p === 'string') : [];
-    return paths[0] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function storeOpenPath(path: string | null): void {
-  try {
-    localStorage.setItem(CONVERSATION_EXPANDED_KEY, JSON.stringify(path === null ? [] : [path]));
-  } catch {
-    // Not remembered; it still expands and collapses.
-  }
-}
-
-interface SectionProps {
-  directory: DirectoryConversations;
-  expanded: boolean;
-  onToggle: () => void;
-  now: number;
-  press: (conversation: Conversation, directory: DirectoryConversations) => () => void;
-  statusFor: ConversationListProps['statusFor'];
-  roomy: boolean;
-  /** Lists CONVERSATIONS_SHOW_MORE_STEP more of its conversations. */
-  onShowMore: () => void;
-  /** Opens the search on this Directory's conversations. */
-  onSearch?: () => void;
-}
-
-function DirectorySection({
-  directory,
-  expanded,
-  onToggle,
-  now,
-  press,
-  statusFor,
-  roomy,
-  onShowMore,
-  onSearch,
-}: SectionProps) {
-  const { conversations } = directory;
-  const empty = conversations.length === 0;
-  const runningIds = conversations.flatMap((c) => (c.agentId !== undefined ? [c.agentId] : []));
-  const running = runningIds.length > 0;
-  const runningStatus = mostUrgent(runningIds.map(statusFor));
-  const latest = empty ? undefined : Math.max(...conversations.map((c) => c.updatedAt));
-  return (
-    <section className="mx-6 mb-2">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        title={directory.path}
-        className={`group w-full flex items-center gap-6 px-6 ${roomy ? 'py-6' : 'py-3'} border-2 rounded-none cursor-pointer text-left text-sm leading-tight ${
-          expanded ? 'bg-btn-bg border-border' : 'bg-transparent border-transparent hover:bg-btn-bg'
-        } ${empty ? 'text-text-muted' : 'text-text'}`}
-      >
-        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-          {directory.name}
-        </span>
-        <span
-          className={`shrink-0 flex ${expanded ? 'text-accent' : 'text-text-muted group-hover:text-text'}`}
-        >
-          <PixelIcon name={expanded ? 'down' : 'next'} scale={1} />
-        </span>
-        {/* Like a row: a running agent's status dot, else how long ago the last one was. */}
-        <RowTrail running={running} status={runningStatus} at={latest} now={now} push />
-      </button>
-      <Unfold open={expanded}>
-        {/* A rule along the bottom: where its drawer ends. */}
-        {directory.conversations.length === 0 ? (
-          <p className="m-0 px-10 py-4 border-b-2 border-border text-xs text-text-muted">
-            No conversations
-          </p>
-        ) : (
-          <div className="py-2 border-b-2 border-border">
-            {directory.conversations.map((conversation) => (
-              <ConversationRow
-                key={conversation.sessionId}
-                conversation={conversation}
-                onPress={press(conversation, directory)}
-                statusFor={statusFor}
-                now={now}
-                roomy={roomy}
-              />
-            ))}
-            {(directory.more || onSearch) && (
-              <div className="flex items-center justify-between gap-8 pl-8 pr-6 pt-2 pb-2">
-                {directory.more ? (
-                  <TextButton testId="conversations-show-more" onPress={onShowMore}>
-                    {`Show ${CONVERSATIONS_SHOW_MORE_STEP} more`}
-                  </TextButton>
-                ) : (
-                  <span />
-                )}
-                {onSearch && (
-                  <TextButton testId="conversations-directory-search" onPress={onSearch}>
-                    See all
-                  </TextButton>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </Unfold>
-    </section>
-  );
-}
-
-/**
- * Its children slide open and shut (a grid row growing from 0fr to 1fr, so
- * no height is measured). Shut, they are unmounted, once the fold has played.
- * Whatever is open on first render shows at once, without the slide.
- */
-function Unfold({ open, children }: { open: boolean; children: ReactNode }) {
-  const [mounted, setMounted] = useState(open);
-  const [unfolded, setUnfolded] = useState(open);
-  const instant = prefersReducedMotion();
-
-  useEffect(() => {
-    if (open) {
-      setMounted(true);
-      if (instant) {
-        setUnfolded(true);
-        return;
-      }
-      // One frame at 0fr first, or there is nothing to slide from.
-      let second = 0;
-      const first = requestAnimationFrame(() => {
-        second = requestAnimationFrame(() => setUnfolded(true));
-      });
-      return () => {
-        cancelAnimationFrame(first);
-        cancelAnimationFrame(second);
-      };
-    }
-    setUnfolded(false);
-    if (instant) {
-      setMounted(false);
-      return;
-    }
-    const timer = setTimeout(() => setMounted(false), CONVERSATION_UNFOLD_MS);
-    return () => clearTimeout(timer);
-  }, [open, instant]);
-
-  if (!mounted) return null;
-  return (
-    <div
-      className="grid"
-      style={{
-        gridTemplateRows: unfolded ? '1fr' : '0fr',
-        transition: instant ? 'none' : `grid-template-rows ${CONVERSATION_UNFOLD_MS}ms ease-out`,
-      }}
-    >
-      <div className="min-h-0 overflow-hidden">{children}</div>
-    </div>
-  );
-}
-
-/** The status that most needs the user, of several agents' (null: none known). */
-const URGENCY: TabStatus[] = ['attention', 'disconnected', 'working', 'idle'];
-function mostUrgent(statuses: Array<TabStatus | null>): TabStatus | null {
-  return URGENCY.find((s) => statuses.includes(s)) ?? null;
 }
 
 export interface RowProps {
