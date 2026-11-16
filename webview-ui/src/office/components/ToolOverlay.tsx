@@ -61,22 +61,12 @@ function getActivityText(
   // signals "done", same as the original behavior.
   if (bubbleType === 'waiting' && waitingAwaitingInput) return WAITING_INPUT_ACTIVITY_TEXT;
 
-  const tools = agentTools[agentId];
-  if (tools && tools.length > 0) {
-    // Find the latest non-done tool
-    const activeTool = [...tools].reverse().find((t) => !t.done);
-    if (activeTool) {
-      if (activeTool.permissionWait) return 'Needs approval';
-      return activeTool.status;
-    }
-    // All tools done but agent still active (mid-turn) — keep showing last tool status
-    if (isActive) {
-      const lastTool = tools[tools.length - 1];
-      if (lastTool) return lastTool.status;
-    }
-  }
-
-  return 'Idle';
+  // The latest non-done tool
+  const activeTool = [...(agentTools[agentId] ?? [])].reverse().find((t) => !t.done);
+  if (activeTool?.permissionWait) return 'Needs approval';
+  // Working for the whole turn, whichever tool is running: a turn that is thinking, or
+  // between two tools, has no tool to name and is working all the same.
+  return isActive || activeTool ? 'Working' : 'Idle';
 }
 
 /** A speech-bubble sprite blitted into a DOM canvas. Bubbles live in the DOM
