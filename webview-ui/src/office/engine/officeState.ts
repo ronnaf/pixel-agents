@@ -947,12 +947,13 @@ export class OfficeState {
     const spots = findApplianceSpots(this.layout.furniture, this.walkableTiles);
     const isTaken = (spot: ApplianceSpot) => taken.has(`${spot.col},${spot.row}`);
     const free = spots.filter((spot) => !isTaken(spot));
-    // Someone waiting at a game for a second player comes first.
-    const openGames = free.filter(
-      (spot) =>
-        spot.kind === 'game' && spots.some((other) => other.uid === spot.uid && isTaken(other)),
+    // Games come first while they have a free end, and one with a player already waiting
+    // for a second comes before an empty one. Everything else is for when the games are full.
+    const freeGames = free.filter((spot) => spot.kind === 'game');
+    const openGames = freeGames.filter((spot) =>
+      spots.some((other) => other.uid === spot.uid && isTaken(other)),
     );
-    const choices = openGames.length > 0 ? openGames : free;
+    const choices = [openGames, freeGames, free].find((group) => group.length > 0) ?? [];
     return choices.length > 0 ? choices[Math.floor(Math.random() * choices.length)] : null;
   }
 
