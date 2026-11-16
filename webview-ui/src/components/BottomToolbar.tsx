@@ -1,4 +1,4 @@
-import { ROSTER_ARROW_WIDTH_PX, ROSTER_HOVER_CLOSE_DELAY_MS } from '../constants.js';
+import { ROSTER_HOVER_CLOSE_DELAY_MS, TOOLBAR_ROSTER_ARROW_WIDTH_PX } from '../constants.js';
 import type { Directory } from '../hooks/useExtensionMessages.js';
 import { useHoverPin } from '../hooks/useHoverPin.js';
 import { popClass, usePresence } from '../hooks/usePresence.js';
@@ -34,12 +34,13 @@ interface BottomToolbarProps {
   onLaunch: (directory: Directory, palette?: number) => void;
 }
 
-/** Every toolbar button's height: the labelled ones' natural height (26 px
- *  text + padding) rounded to whole pixels, so the + can be an exact square. */
-const ROW_HEIGHT = 'h-52';
+/** Every toolbar button's height, fixed so the + can be an exact square; the
+ *  labelled ones (20 px text, `sm`) are centred in it, line-height trimmed so
+ *  their text box fits. */
+const ROW_HEIGHT = 'h-36 leading-none';
 /** The + launch button: a square as tall as its row, the + centred (the
  *  phone's + card, MobileAgentBar). */
-const LAUNCH_SQUARE = 'size-52 flex items-center justify-center border-2 rounded-none select-none';
+const LAUNCH_SQUARE = 'size-36 flex items-center justify-center border-2 rounded-none select-none';
 
 export function BottomToolbar({
   isEditMode,
@@ -203,8 +204,8 @@ export function BottomToolbar({
                 : 'Launch an agent as one of your characters, or edit them'
             }
             // Enabled even when nothing can launch: a pick then edits.
-            style={{ width: ROSTER_ARROW_WIDTH_PX }}
-            className={`h-52 press-juice flex items-center justify-center border-2 border-l-bg/40 rounded-none select-none cursor-pointer ${
+            style={{ width: TOOLBAR_ROSTER_ARROW_WIDTH_PX }}
+            className={`h-36 press-juice flex items-center justify-center border-2 border-l-bg/40 rounded-none select-none cursor-pointer ${
               canLaunch
                 ? `border-accent text-white ${menus.isRosterOpen || isCharactersOpen ? 'bg-accent-bright' : 'bg-accent hover:bg-accent-bright'}`
                 : 'bg-btn-bg border-border text-text-muted'
@@ -221,6 +222,7 @@ export function BottomToolbar({
           variant={isEditMode ? 'active' : 'default'}
           onClick={onToggleEditMode}
           title="Edit office layout"
+          size="sm"
           className={`${ROW_HEIGHT} press-juice`}
           icon="layout"
         >
@@ -231,6 +233,7 @@ export function BottomToolbar({
             variant={isSettingsOpen ? 'active' : 'default'}
             onClick={onToggleSettings}
             title="Settings"
+            size="sm"
             className={`${ROW_HEIGHT} press-juice`}
             icon="settings"
           >

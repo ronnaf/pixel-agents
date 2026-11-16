@@ -1,6 +1,6 @@
 import type { SpriteData } from '../types.js';
 
-const zoomCaches = new Map<number, WeakMap<SpriteData, HTMLCanvasElement>>();
+const zoomCaches = new Map<number | string, WeakMap<SpriteData, HTMLCanvasElement>>();
 
 // ── Outline sprite generation ─────────────────────────────────
 
@@ -45,11 +45,21 @@ export function getOutlineSprite(sprite: SpriteData): SpriteData {
   return outline;
 }
 
-export function getCachedSprite(sprite: SpriteData, zoom: number): HTMLCanvasElement {
-  let cache = zoomCaches.get(zoom);
+/**
+ * `sprite` rasterised at `zoom` device pixels per sprite pixel. A fractional
+ * zoom rounds each sprite pixel's edges to whole device pixels (some pixels
+ * come out one wider), so nothing is anti-aliased and the sprite stays crisp.
+ * `origin` (sprite pixels) is how far up-left of the art it lines up with the
+ * sprite is drawn, e.g. 1 for a character's outline: edges are rounded in the
+ * art's frame so they meet its own, and the caller draws the sprite at the
+ * art's position + Math.round(-origin * zoom).
+ */
+export function getCachedSprite(sprite: SpriteData, zoom: number, origin = 0): HTMLCanvasElement {
+  const key = origin === 0 ? zoom : `${zoom}@${origin}`;
+  let cache = zoomCaches.get(key);
   if (!cache) {
     cache = new WeakMap();
-    zoomCaches.set(zoom, cache);
+    zoomCaches.set(key, cache);
   }
 
   const cached = cache.get(sprite);
@@ -57,9 +67,12 @@ export function getCachedSprite(sprite: SpriteData, zoom: number): HTMLCanvasEle
 
   const rows = sprite.length;
   const cols = sprite[0].length;
+  const start = Math.round(-origin * zoom);
+  /** Device-pixel edge before sprite pixel `i` (exactly i * zoom when zoom is whole). */
+  const edge = (i: number) => Math.round((i - origin) * zoom) - start;
   const canvas = document.createElement('canvas');
-  canvas.width = cols * zoom;
-  canvas.height = rows * zoom;
+  canvas.width = edge(cols);
+  canvas.height = edge(rows);
   const ctx = canvas.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
 
@@ -68,7 +81,7 @@ export function getCachedSprite(sprite: SpriteData, zoom: number): HTMLCanvasEle
       const color = sprite[r][c];
       if (color === '') continue;
       ctx.fillStyle = color;
-      ctx.fillRect(c * zoom, r * zoom, zoom, zoom);
+      ctx.fillRect(edge(c), edge(r), edge(c + 1) - edge(c), edge(r + 1) - edge(r));
     }
   }
 

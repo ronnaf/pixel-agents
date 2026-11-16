@@ -322,6 +322,17 @@ export const ICONS = {
     '........',
     '........',
   ],
+  // A crosshair: bring the office back to the middle of the view.
+  recentre: [
+    '...##...',
+    '...##...',
+    '........',
+    '##.##.##',
+    '##.##.##',
+    '........',
+    '...##...',
+    '...##...',
+  ],
   // A magnifying glass: the lens top-left, the handle out to the corner.
   search: [
     '.####...',

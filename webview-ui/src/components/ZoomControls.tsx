@@ -6,6 +6,7 @@ import {
   ZOOM_LEVEL_HIDE_DELAY_MS,
   ZOOM_MAX,
   ZOOM_MIN,
+  ZOOM_STEP,
 } from '../constants.js';
 import { Button } from './ui/Button.js';
 import { PixelIcon } from './ui/PixelIcon.js';
@@ -14,6 +15,8 @@ import { PixelText } from './ui/PixelText.js';
 interface ZoomControlsProps {
   zoom: number;
   onZoomChange: (zoom: number) => void;
+  /** Put the office back in the middle of the view, at the zoom it is at. */
+  onRecentre: () => void;
   /** The conversation sidebar's toggle, above the zoom buttons (only where there is a sidebar). */
   sidebar?: { open: boolean; onToggle: () => void };
 }
@@ -87,7 +90,7 @@ export function MobileZoomLevel({ zoom }: { zoom: number }) {
   );
 }
 
-export function ZoomControls({ zoom, onZoomChange, sidebar }: ZoomControlsProps) {
+export function ZoomControls({ zoom, onZoomChange, onRecentre, sidebar }: ZoomControlsProps) {
   const flash = useZoomFlash(zoom);
   const [hovered, setHovered] = useState(false);
   // Bumped per toggle: remounts the icon so its pop plays (never on first paint).
@@ -127,7 +130,7 @@ export function ZoomControls({ zoom, onZoomChange, sidebar }: ZoomControlsProps)
         >
           <Button
             size="icon_lg"
-            onClick={() => onZoomChange(zoom + 1)}
+            onClick={() => onZoomChange(zoom + ZOOM_STEP)}
             disabled={maxDisabled}
             className="border-border! shadow-pixel disabled:hover:bg-btn-bg disabled:cursor-default disabled:opacity-(--btn-disabled-opacity)"
             title="Zoom in (Ctrl+Scroll)"
@@ -136,7 +139,7 @@ export function ZoomControls({ zoom, onZoomChange, sidebar }: ZoomControlsProps)
           </Button>
           <Button
             size="icon_lg"
-            onClick={() => onZoomChange(zoom - 1)}
+            onClick={() => onZoomChange(zoom - ZOOM_STEP)}
             disabled={minDisabled}
             className="border-border! shadow-pixel disabled:hover:bg-btn-bg disabled:cursor-default disabled:opacity-(--btn-disabled-opacity)"
             title="Zoom out (Ctrl+Scroll)"
@@ -149,6 +152,14 @@ export function ZoomControls({ zoom, onZoomChange, sidebar }: ZoomControlsProps)
             className="left-full top-1/2 -translate-y-1/2 ml-12"
           />
         </div>
+        <Button
+          size="icon_lg"
+          onClick={onRecentre}
+          className="border-border! shadow-pixel"
+          title="Centre the office"
+        >
+          <PixelIcon name="recentre" />
+        </Button>
       </div>
     </>
   );

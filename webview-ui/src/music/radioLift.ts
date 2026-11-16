@@ -1,12 +1,12 @@
 /**
  * The office radio's lift, the one owner of a contract between the radio and
- * the UI that rides above it (the version label): MusicPlayer writes how far
+ * the UI that rides above it (the version label, the agent cards): MusicPlayer writes how far
  * its bar stands out as CSS variables on the document root, and a rider reads
  * them through aboveRadio / RIDE_ABOVE_RADIO. Unset, a rider sits at its own
  * spot.
  */
 
-import { MUSIC_SHEET_EASE, MUSIC_SHEET_SETTLE_MS } from '../constants.js';
+import { MUSIC_PLAYER_BOTTOM_PX, MUSIC_SHEET_EASE, MUSIC_SHEET_SETTLE_MS } from '../constants.js';
 
 const LIFT = '--music-lift';
 const SETTLE = '--music-settle';
@@ -27,6 +27,10 @@ export function clearRadioLift(): void {
 
 /** A `bottom` that rides above the radio: `calc(<px>px + var(--music-lift, 0px))`. */
 export const aboveRadio = (px: number): string => `calc(${px}px + var(${LIFT}, 0px))`;
+
+/** A height that stops short of the radio, for a column that would otherwise run down
+ *  behind it: the full height less the radio's lift and the gap beneath the radio. */
+export const HEIGHT_ABOVE_RADIO = `calc(100% - var(${LIFT}, 0px) - ${MUSIC_PLAYER_BOTTOM_PX}px)`;
 
 /** The transition that keeps a rider in step with the radio. */
 export const RIDE_ABOVE_RADIO = `bottom var(${SETTLE}, 0ms) ${MUSIC_SHEET_EASE}`;

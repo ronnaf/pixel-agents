@@ -381,8 +381,11 @@ export function renderScene(
   // Furniture
   for (const f of furniture) {
     const cached = getCachedSprite(f.sprite, zoom);
-    const fx = offsetX + f.x * zoom;
-    const fy = offsetY + f.y * zoom;
+    // Whole device pixels at a fractional zoom. Floor, not round: a sprite
+    // drawn up from a tile's bottom edge (walls) is round(h * zoom) tall, and
+    // floor + that lands exactly on the edge.
+    const fx = Math.floor(offsetX + f.x * zoom);
+    const fy = Math.floor(offsetY + f.y * zoom);
     if (f.mirrored) {
       drawables.push({
         zY: f.zY,
@@ -448,9 +451,11 @@ export function renderScene(
     if (isSelected || isHovered) {
       const outlineAlpha = isSelected ? SELECTED_OUTLINE_ALPHA : HOVERED_OUTLINE_ALPHA;
       const outlineData = getOutlineSprite(spriteData);
-      const outlineCached = getCachedSprite(outlineData, zoom);
-      const olDrawX = drawX - zoom; // 1 sprite-pixel offset, scaled
-      const olDrawY = drawY - zoom; // outline follows sitting offset via drawY
+      // Rasterised in the character's frame (origin 1) so its edges meet the
+      // character's at a fractional zoom.
+      const outlineCached = getCachedSprite(outlineData, zoom, 1);
+      const olDrawX = drawX + Math.round(-zoom); // 1 sprite-pixel offset, scaled
+      const olDrawY = drawY + Math.round(-zoom); // outline follows sitting offset via drawY
       drawables.push({
         zY: charZY - OUTLINE_Z_SORT_OFFSET, // sort just before character
         draw: (c) => {

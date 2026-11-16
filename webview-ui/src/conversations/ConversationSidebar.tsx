@@ -69,13 +69,14 @@ export function ConversationSidebar({
           statusFor={statusFor}
           onSearch={onSearch}
         />
-        <div className="p-8 border-t-2 border-border">
+        <div className="px-8 py-4 border-t-2 border-border">
           <Button
             size="md"
             icon="settings"
-            // Flat until hovered (or open), its icon and label to the left.
+            // Flat until hovered (or open), its icon and label to the left;
+            // line-height trimmed so the row is only as tall as its text.
             variant={isSettingsOpen ? 'active' : 'ghost'}
-            className={`w-full text-left ${isSettingsOpen ? '' : 'text-text! hover:bg-btn-hover'}`}
+            className={`w-full text-left leading-none ${isSettingsOpen ? '' : 'text-text! hover:bg-btn-hover'}`}
             onClick={onToggleSettings}
           >
             Settings

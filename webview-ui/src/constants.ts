@@ -117,6 +117,12 @@ export const CAMERA_FOLLOW_SNAP_THRESHOLD = 0.5;
 // ── Zoom ─────────────────────────────────────────────────────
 export const ZOOM_MIN = 1;
 export const ZOOM_MAX = 10;
+/** One zoom step (buttons, Ctrl+wheel, pinch snap), in device pixels per sprite
+ *  pixel. A quarter pixel keeps 16-px tiles (and the carpet's half-tile offset) on
+ *  whole device pixels, so the grid stays seam-free; spriteCache rounds each
+ *  sprite pixel's edges, so between whole zooms some sprite pixels are drawn one
+ *  device pixel wider than their neighbours. */
+export const ZOOM_STEP = 0.25;
 export const ZOOM_DEFAULT_DPR_FACTOR = 2;
 export const ZOOM_LEVEL_FADE_DELAY_MS = 1500;
 export const ZOOM_LEVEL_HIDE_DELAY_MS = 2000;
@@ -776,6 +782,8 @@ export const CONVERSATION_SEARCH_PREFETCH_PX = 120;
 export const CONVERSATION_EXPANDED_KEY = 'pixel-agents.conversationExpandedDirectories';
 /** localStorage key: whether this viewer shut the desktop conversation sidebar. */
 export const CONVERSATION_SIDEBAR_SHUT_KEY = 'pixel-agents.conversationSidebarShut';
+/** localStorage key: how this viewer orders the "Recent" conversations. */
+export const RECENT_CONVERSATIONS_SORT_KEY = 'pixel-agents.recentConversationsSort';
 /** How long a Directory's section takes to unfold or fold in the conversation list. */
 export const CONVERSATION_UNFOLD_MS = 180;
 /** An agent card's height: its mug shot plus 1px padding and 2px border each
@@ -786,8 +794,10 @@ export const AGENT_CARD_HEIGHT_PX = MUGSHOT_CROP_SIDE_PX * MUGSHOT_RENDER_ZOOM +
  *  (one 8×8 PixelIcon wide), and 1px padding and 2px border each side. */
 export const AGENT_CARD_WIDTH_PX =
   MUGSHOT_CROP_SIDE_PX * MUGSHOT_RENDER_ZOOM + 1 + 8 * PIXEL_ICON_SCALE + 2 * (1 + 2);
-/** The roster arrow: a narrow tab right of the + card (phone bar and desktop toolbar). */
+/** The roster arrow: a narrow tab right of the + card (phone bar). */
 export const ROSTER_ARROW_WIDTH_PX = 28;
+/** The roster arrow right of the desktop toolbar's + (a smaller row than the phone's). */
+export const TOOLBAR_ROSTER_ARROW_WIDTH_PX = 20;
 
 // ── Usage bars (top-left: the account's Claude Code plan usage) ──
 /** Width of both bars: the weekly one on top, the 5-hour one under it. */
@@ -811,8 +821,8 @@ export const USAGE_BAR_WARN_FRACTION = 0.5;
 export const USAGE_BAR_LOW_FRACTION = 0.2;
 /** How often the bars re-read the clock (resets and "updated N ago" move with it). */
 export const USAGE_BAR_TICK_MS = 30_000;
-/** Distance from the office's left edge: past the 40px button column at left 8. */
-export const USAGE_BARS_LEFT_PX = 8 + 40 + 8;
+/** Distance from the office's left edge: past the 28px button column at left 8. */
+export const USAGE_BARS_LEFT_PX = 8 + 28 + 8;
 // ── Loading screen (a lamp-lit corner of the office while it loads) ──
 /** The loading screen's zoom, as the office counts it: DEVICE pixels per
  *  sprite pixel (the office at 5x on the phone, 3x on desktop). */
@@ -850,6 +860,13 @@ export const MUSIC_RECENT_NAMES = 12;
 export const MUSIC_NAME_REROLLS = 8;
 /** localStorage key for the radio's volume and mood (per browser). */
 export const MUSIC_STORAGE_KEY = 'pixel-agents.radio';
+/** localStorage key for the last YouTube link the radio played, and whether it was the source. */
+export const MUSIC_YOUTUBE_STORAGE_KEY = 'pixel-agents.radio.youtube';
+/** The embedded YouTube player's frame beside the radio (16:9, CSS px). */
+export const MUSIC_YOUTUBE_FRAME_WIDTH_PX = 128;
+export const MUSIC_YOUTUBE_FRAME_HEIGHT_PX = 72;
+/** How often the radio's progress line re-reads a YouTube video's position. */
+export const MUSIC_YOUTUBE_POLL_MS = 1000;
 /** The compact player's width. */
 export const MUSIC_PLAYER_WIDTH_PX = 364;
 /** The player's visualizer: how many bars, and the band of the mix they span. */

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import type { Conversation, DirectoryConversations } from '../../../core/src/messages.js';
 import type { TabStatus } from '../components/AgentCard.js';
@@ -6,8 +6,12 @@ import { CharacterMugShot } from '../components/CharacterMugShot.js';
 import { STATUS_DOT } from '../components/statusDot.js';
 import { PixelIcon } from '../components/ui/PixelIcon.js';
 import { PixelText } from '../components/ui/PixelText.js';
-import { MUGSHOT_CROP_SIDE_PX, RECENT_CONVERSATIONS_COUNT } from '../constants.js';
-import { recentAcross } from './recent.js';
+import {
+  MUGSHOT_CROP_SIDE_PX,
+  RECENT_CONVERSATIONS_COUNT,
+  RECENT_CONVERSATIONS_SORT_KEY,
+} from '../constants.js';
+import { RECENT_SORTS, recentAcross, type RecentSort } from './recent.js';
 import { timeAgo } from './timeAgo.js';
 import { type ConversationLimits, useConversations } from './useConversations.js';
 
@@ -35,6 +39,32 @@ export interface ConversationSearchScope {
 /** Every Directory lists its default number of conversations: "Recent" draws on those. */
 const DEFAULT_LIMITS: ConversationLimits = {};
 
+/** The sort button's name for each order. */
+const SORT_LABEL: Record<RecentSort, string> = {
+  recent: 'Recent',
+  active: 'Active first',
+  name: 'Name',
+  folder: 'Folder',
+};
+
+/** The order this browser last chose for "Recent" (newest first if none). */
+function storedSort(): RecentSort {
+  try {
+    const stored = localStorage.getItem(RECENT_CONVERSATIONS_SORT_KEY);
+    return RECENT_SORTS.find((sort) => sort === stored) ?? 'recent';
+  } catch {
+    return 'recent';
+  }
+}
+
+function storeSort(sort: RecentSort): void {
+  try {
+    localStorage.setItem(RECENT_CONVERSATIONS_SORT_KEY, sort);
+  } catch {
+    // Not remembered; it still sorts.
+  }
+}
+
 /**
  * The recent conversations, shared by the desktop sidebar and the phone's
  * panel: the newest across every Directory ("Recent", each with its
@@ -57,6 +87,13 @@ export function ConversationList({
       ? onOpenAgent(conversation.agentId)
       : onResume(conversation.sessionId, directory.path);
   const list = useConversations(open, DEFAULT_LIMITS);
+  const [sort, setSort] = useState(storedSort);
+  const nextSort = RECENT_SORTS[(RECENT_SORTS.indexOf(sort) + 1) % RECENT_SORTS.length];
+  /** The sort button: on to the next order (remembered per browser). */
+  const cycleSort = () => {
+    storeSort(nextSort);
+    setSort(nextSort);
+  };
 
   // flex-1 even while empty: whatever sits below the list stays at the bottom.
   if (list === null || list.directories.length === 0) {
@@ -66,18 +103,29 @@ export function ConversationList({
       </p>
     );
   }
-  const recent = recentAcross(list.directories, RECENT_CONVERSATIONS_COUNT);
+  const recent = recentAcross(list.directories, RECENT_CONVERSATIONS_COUNT, sort, statusFor);
   const now = list.receivedAt;
   return (
-    <div className="flex-1 min-h-0 quiet-scrollbar">
+    <div className="flex-1 min-h-0 quiet-scrollbar no-scrollbar">
       {onSearch && <SearchField onPress={() => onSearch({})} roomy={roomy} />}
       <section data-testid="recent-conversations" className="pb-6">
         <SectionHeading
           action={
-            onSearch && recent.length > 0 ? (
-              <TextButton testId="conversations-see-all" onPress={() => onSearch({})}>
-                See all
-              </TextButton>
+            recent.length > 0 ? (
+              <span className="flex items-baseline gap-4">
+                <TextButton
+                  testId="conversations-sort"
+                  label={`Sort recent conversations: ${SORT_LABEL[sort]}. Press for ${SORT_LABEL[nextSort]}.`}
+                  onPress={cycleSort}
+                >
+                  {`Sort: ${SORT_LABEL[sort]}`}
+                </TextButton>
+                {onSearch && (
+                  <TextButton testId="conversations-see-all" onPress={() => onSearch({})}>
+                    See all
+                  </TextButton>
+                )}
+              </span>
             ) : undefined
           }
         >
@@ -125,15 +173,20 @@ function TextButton({
   children,
   onPress,
   testId,
+  label,
 }: {
   children: string;
   onPress: () => void;
   testId?: string;
+  /** Its accessible name, when the visible text alone says too little. */
+  label?: string;
 }) {
   return (
     <button
       type="button"
       data-testid={testId}
+      aria-label={label}
+      title={label}
       onClick={onPress}
       className="shrink-0 px-2 bg-transparent border-none rounded-none cursor-pointer text-2xs text-text-muted hover:text-text normal-case tracking-normal"
     >

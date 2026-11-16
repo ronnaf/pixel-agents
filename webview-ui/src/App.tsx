@@ -571,6 +571,11 @@ function App() {
             <ZoomControls
               zoom={editor.zoom}
               onZoomChange={editor.handleZoomChange}
+              onRecentre={() => {
+                // A followed agent would pull the view straight back to itself.
+                getOfficeState().cameraFollowId = null;
+                editor.panRef.current = { x: 0, y: 0 };
+              }}
               sidebar={hasSidebar ? { open: sidebar.open, onToggle: sidebar.toggle } : undefined}
             />
           )}

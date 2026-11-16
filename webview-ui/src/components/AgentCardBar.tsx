@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { TERMINAL_SIDEBAR_WIDTH_PX } from '../constants.js';
+import { HEIGHT_ABOVE_RADIO } from '../music/radioLift.js';
 import type { AgentAppearance, TabStatus } from './AgentCard.js';
 import { AgentCardList } from './AgentCardList.js';
 
@@ -53,8 +54,13 @@ export function AgentCardBar({
     <AgentCardList
       agentIds={agentIds}
       axis="y"
-      className="relative z-30 h-full shrink-0 flex flex-col items-center gap-4 pt-4 overflow-y-auto pointer-events-none"
-      style={{ width: TERMINAL_SIDEBAR_WIDTH_PX, marginLeft: -TERMINAL_SIDEBAR_WIDTH_PX }}
+      className="relative z-30 shrink-0 flex flex-col items-center gap-4 pt-4 overflow-y-auto no-scrollbar pointer-events-none"
+      // The column ends above the radio in the corner below it, and scrolls from there.
+      style={{
+        width: TERMINAL_SIDEBAR_WIDTH_PX,
+        marginLeft: -TERMINAL_SIDEBAR_WIDTH_PX,
+        height: HEIGHT_ABOVE_RADIO,
+      }}
       onReorder={onReorder}
       activeAgentId={activeAgentId}
       focusedAgentId={focusedAgentId}

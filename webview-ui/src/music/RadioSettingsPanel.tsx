@@ -1,23 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 import { Button } from '../components/ui/Button.js';
 import { writeClipboardText } from '../terminal/clipboard.js';
 import { MOOD_KEYS, MOODS, type MoodSetting } from './moods.js';
 import { officeRadio } from './musicEngine.js';
+import { youtubeAvailable, youtubeSource } from './youtubeSource.js';
 
 const MOOD_OPTIONS: MoodSetting[] = ['auto', ...MOOD_KEYS];
 const moodName = (m: MoodSetting) => (m === 'auto' ? 'Auto' : MOODS[m].label);
 
-/** The radio's settings panel: mood, and the song code to share a tune or play one. */
+/** The radio's settings panel: mood, the song code to share a tune or play
+ *  one, and (standalone) a YouTube link to play instead. */
 export function RadioSettingsPanel({ mood, code }: { mood: MoodSetting; code: string }) {
   const [copied, setCopied] = useState(false);
   const [entry, setEntry] = useState('');
   const [invalid, setInvalid] = useState(false);
+  const yt = useSyncExternalStore(youtubeSource.subscribe, youtubeSource.getState);
 
   useEffect(() => setCopied(false), [code]);
 
   const play = () => {
+    // A YouTube link plays through YouTube; anything else is a song code.
+    if (youtubeSource.play(entry)) {
+      setEntry('');
+      setInvalid(false);
+      return;
+    }
     if (officeRadio.playCode(entry)) {
+      youtubeSource.stop(false);
       setEntry('');
       setInvalid(false);
     } else setInvalid(true);
@@ -67,8 +77,8 @@ export function RadioSettingsPanel({ mood, code }: { mood: MoodSetting; code: st
             setEntry(e.target.value);
             setInvalid(false);
           }}
-          placeholder="Paste a song code"
-          aria-label="Song code to play"
+          placeholder={youtubeAvailable ? 'Paste a song code or YouTube link' : 'Paste a song code'}
+          aria-label={youtubeAvailable ? 'Song code or YouTube link to play' : 'Song code to play'}
           aria-invalid={invalid}
           className={`flex-1 min-w-0 bg-bg-dark border-2 ${invalid ? 'border-danger' : 'border-border'} px-6 py-2 text-sm text-text rounded-none outline-none focus:border-accent`}
         />
@@ -78,8 +88,31 @@ export function RadioSettingsPanel({ mood, code }: { mood: MoodSetting; code: st
       </form>
       {invalid && (
         <span className="text-2xs text-danger leading-none">
-          Not a song code. They look like TOWN-5-8F3A21C0.
+          {youtubeAvailable
+            ? 'Not a song code or YouTube link. Codes look like TOWN-5-8F3A21C0.'
+            : 'Not a song code. They look like TOWN-5-8F3A21C0.'}
         </span>
+      )}
+      {yt.error && <span className="text-2xs text-danger leading-tight">{yt.error}</span>}
+      {yt.active ? (
+        <div className="flex items-center justify-between gap-8">
+          <span className="text-2xs text-text-muted leading-tight">Playing from YouTube.</span>
+          <Button size="sm" onClick={() => youtubeSource.stop()}>
+            Back to radio
+          </Button>
+        </div>
+      ) : (
+        youtubeAvailable &&
+        yt.url && (
+          <div className="flex items-center gap-6">
+            <span className="flex-1 min-w-0 truncate text-2xs text-text-muted" title={yt.url}>
+              {yt.url}
+            </span>
+            <Button size="sm" onClick={() => youtubeSource.play(yt.url)}>
+              Play last link
+            </Button>
+          </div>
+        )
       )}
 
       <div className="flex items-center justify-between gap-8 mt-4">

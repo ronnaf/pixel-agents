@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { Button } from '../components/ui/Button.js';
 import { PixelIcon } from '../components/ui/PixelIcon.js';
@@ -10,6 +17,8 @@ import {
   MUSIC_VERSION_GAP_PX,
   MUSIC_VISUALIZER_BARS,
   MUSIC_VISUALIZER_HEIGHT_PX,
+  MUSIC_YOUTUBE_FRAME_HEIGHT_PX,
+  MUSIC_YOUTUBE_FRAME_WIDTH_PX,
 } from '../constants.js';
 import { useDismiss } from '../hooks/useDismiss.js';
 import { findTouch } from '../touch/touchPrimitives.js';
@@ -22,6 +31,7 @@ import { RadioSettingsPanel } from './RadioSettingsPanel.js';
 import { keyLabel, songCode } from './songCode.js';
 import { useOfficeRadio } from './useOfficeRadio.js';
 import { VolumeControl } from './VolumeControl.js';
+import { youtubeSource } from './youtubeSource.js';
 
 /** Bar heights move in whole steps of this many px (pixel look). */
 const BAR_STEP_PX = 2;
@@ -64,6 +74,27 @@ function Visualizer({ playing }: { playing: boolean }) {
           style={{ height: BAR_STEP_PX }}
         />
       ))}
+    </div>
+  );
+}
+
+/** The YouTube player's frame, kept small and visible above the bar while
+ *  YouTube is the source (youtubeSource builds the iframe inside it). */
+function YouTubeFrame() {
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    youtubeSource.attach(host);
+    return () => youtubeSource.detach(host);
+  }, []);
+  return (
+    <div className="pixel-panel self-end p-2 pointer-events-auto">
+      <div
+        ref={hostRef}
+        className="bg-bg-dark"
+        style={{ width: MUSIC_YOUTUBE_FRAME_WIDTH_PX, height: MUSIC_YOUTUBE_FRAME_HEIGHT_PX }}
+      />
     </div>
   );
 }
@@ -142,6 +173,7 @@ const FRAME = {
  */
 export function MusicPlayer({ mobile }: { mobile: boolean }) {
   const radio = useOfficeRadio();
+  const yt = useSyncExternalStore(youtubeSource.subscribe, youtubeSource.getState);
   const [open, setOpen] = useState(false);
   // Phone only: whether the player is out (it starts tucked away each load).
   const [shown, setShown] = useState(false);
@@ -170,13 +202,19 @@ export function MusicPlayer({ mobile }: { mobile: boolean }) {
   const officeWidth = useOfficeWidth(rootRef, !mobile && !radio.hidden);
   const fit = officeWidth === null ? FULL_PLAYER : playerFit(officeWidth);
   useLayoutEffect(() => {
-    const h = barRef.current?.offsetHeight ?? 0;
+    const bar = barRef.current;
+    // The YouTube frame stands on the bar: what rides above the radio clears both.
+    const top = (yt.active && bar?.previousElementSibling) || bar;
+    const h = bar && top ? bar.getBoundingClientRect().bottom - top.getBoundingClientRect().top : 0;
     setRadioLift(Math.round(reveal * (h + MUSIC_VERSION_GAP_PX)), dragging);
-  }, [reveal, dragging]);
+  }, [reveal, dragging, yt.active]);
   useEffect(() => clearRadioLift, []);
 
   const { song } = radio;
   if (radio.hidden) return null;
+  // While YouTube is the source, the same buttons drive it.
+  const playing = yt.active ? yt.playing : radio.playing;
+  const title = yt.active ? yt.title || 'YouTube' : song.name;
 
   const body = (
     <>
@@ -185,6 +223,7 @@ export function MusicPlayer({ mobile }: { mobile: boolean }) {
           <RadioSettingsPanel mood={radio.mood} code={songCode(song)} />
         </div>
       )}
+      {yt.active && <YouTubeFrame />}
 
       <div
         ref={barRef}
@@ -193,18 +232,18 @@ export function MusicPlayer({ mobile }: { mobile: boolean }) {
       >
         <Button
           size="icon_lg"
-          variant={radio.playing ? 'active' : 'default'}
+          variant={playing ? 'active' : 'default'}
           className="w-32! h-32! shrink-0"
-          onClick={() => void officeRadio.toggle()}
-          aria-label={radio.playing ? 'Pause music' : 'Play music'}
-          title={radio.playing ? 'Pause music' : 'Play music'}
+          onClick={() => (yt.active ? youtubeSource.toggle() : void officeRadio.toggle())}
+          aria-label={playing ? 'Pause music' : 'Play music'}
+          title={playing ? 'Pause music' : 'Play music'}
         >
-          <PixelIcon name={radio.playing ? 'pause' : 'next'} />
+          <PixelIcon name={playing ? 'pause' : 'next'} />
         </Button>
         <Button
           size="icon_lg"
           className="w-32! h-32! shrink-0"
-          onClick={() => officeRadio.skip()}
+          onClick={() => (yt.active ? youtubeSource.next() : officeRadio.skip())}
           aria-label="Next tune"
           title="Next tune"
         >
@@ -212,11 +251,13 @@ export function MusicPlayer({ mobile }: { mobile: boolean }) {
         </Button>
         {fit.title && (
           <div className="flex-1 min-w-0 flex flex-col gap-2 leading-none ml-2">
-            <span className="text-xs text-text truncate" title={song.name}>
-              {song.name}
+            <span className="text-xs text-text truncate" title={title}>
+              {title}
             </span>
             <span className="text-2xs text-text-muted truncate">
-              {MOODS[song.moodKey].label} · {keyLabel(song)}
+              {yt.active
+                ? `YouTube${yt.link?.listId ? ' · playlist' : ''}`
+                : `${MOODS[song.moodKey].label} · ${keyLabel(song)}`}
             </span>
           </div>
         )}
@@ -235,7 +276,10 @@ export function MusicPlayer({ mobile }: { mobile: boolean }) {
         </Button>
         {/* The tune's progress, along the panel's foot. */}
         <div className="absolute left-0 right-0 bottom-0 h-2 bg-bg-dark" aria-hidden="true">
-          <div className="h-full bg-accent" style={{ width: `${radio.progress * 100}%` }} />
+          <div
+            className="h-full bg-accent"
+            style={{ width: `${(yt.active ? yt.progress : radio.progress) * 100}%` }}
+          />
         </div>
       </div>
     </>
@@ -248,7 +292,8 @@ export function MusicPlayer({ mobile }: { mobile: boolean }) {
         // The box keeps the full width for the settings panel; only the panel
         // and the bar take clicks, so the room a narrower bar leaves is the
         // toolbar's. Cramped (see PlayerFit), the toolbar draws over the bar.
-        className={`absolute right-10 flex flex-col items-end gap-4 pointer-events-none ${fit.cramped ? 'z-10' : 'z-30'}`}
+        // Its settings panel open, the player comes above the agent cards it reaches up over.
+        className={`absolute right-10 flex flex-col items-end gap-4 pointer-events-none ${open ? 'z-40' : fit.cramped ? 'z-10' : 'z-30'}`}
         style={FRAME}
       >
         {body}

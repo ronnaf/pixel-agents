@@ -388,6 +388,16 @@
     }
   }
 
+  /* No scrollbar at all: the content still scrolls (wheel, trackpad, keys). For the
+     always-on lists beside the office, where a bar is clutter. After the bars
+     above so it wins. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* No scrollbar where the finger scrolls (touch screens), whatever the
      width: a narrow desktop window keeps its .pixel-scrollbar, a phone has
      nothing to drag it with. After .pixel-scrollbar so it wins. */

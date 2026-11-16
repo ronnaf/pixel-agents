@@ -10,7 +10,7 @@ const sizes = {
   lg: 'py-3 px-14 text-lg',
   xl: 'py-6 px-24 text-xl',
   icon: 'p-0 w-16 h-16 flex items-center justify-center',
-  icon_lg: 'p-0 w-40 h-40 flex items-center justify-center',
+  icon_lg: 'p-0 w-28 h-28 flex items-center justify-center',
 } as const;
 
 const variants = {
