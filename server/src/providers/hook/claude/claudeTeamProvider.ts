@@ -103,16 +103,45 @@ const RESUMED_AGENT_ID = /"resumedAgentId"\s*:\s*"([A-Za-z0-9_-]+)"/;
 const INTERIM_NOTICE_SUMMARY = /<summary>[^<]*is waiting on its own background work\s*<\/summary>/;
 const INTERIM_NOTICE_NOTE = /<note>[^<]*\bmay be interim\b[^<]*<\/note>/;
 
-/** Background agents' completion notices arrive as an `enqueue`
- *  queue-operation on the lead's transcript, its string content one or more
- *  `<task-notification>`s naming the agent by `<tool-use-id>` (the spawn's),
+/**
+ * The text of a record that can carry completion notices, or null. A notice reaches the
+ * lead's transcript in one of three forms, and which one depends on the harness and on
+ * whether the lead was mid-turn: the content of an `enqueue` queue-operation, the prompt
+ * of a `queued_command` attachment, or the text of a user message. A reader of only the
+ * first leaves the agents the other two announce live for good.
+ */
+function noticeText(record: Record<string, unknown>): string | null {
+  if (record.type === 'queue-operation' && record.operation === 'enqueue') {
+    return typeof record.content === 'string' ? record.content : null;
+  }
+  if (record.type === 'attachment') {
+    const attachment = record.attachment as { type?: unknown; prompt?: unknown } | null | undefined;
+    return attachment?.type === 'queued_command' && typeof attachment.prompt === 'string'
+      ? attachment.prompt
+      : null;
+  }
+  if (record.type !== 'user') return null;
+  const content = (record.message as { content?: unknown } | undefined)?.content;
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return null;
+  // Text blocks only: a tool result that quotes a notice (a transcript read back) ends nothing.
+  return content
+    .flatMap((block: unknown) => {
+      const b = block as { type?: unknown; text?: unknown } | null;
+      return b?.type === 'text' && typeof b.text === 'string' ? [b.text] : [];
+    })
+    .join('\n');
+}
+
+/** Background agents' completion notices arrive on the lead's transcript (noticeText) as
+ *  one or more `<task-notification>`s naming the agent by `<tool-use-id>` (the spawn's),
  *  `<task-id>` (the agent's) or both. A crash notice lists several task ids. */
 function readSpawnNotices(
   record: Record<string, unknown>,
 ): { notices: SpawnNotice[]; at?: number } | null {
-  if (record.type !== 'queue-operation' || record.operation !== 'enqueue') return null;
-  if (typeof record.content !== 'string') return null;
-  const notices = record.content
+  const text = noticeText(record);
+  if (text === null || !text.includes('<task-notification>')) return null;
+  const notices = text
     .split('<task-notification>')
     .map((notice) => ({
       toolIds: [...notice.matchAll(/<tool-use-id>(.*?)<\/tool-use-id>/g)].map((m) => m[1]),

@@ -129,8 +129,24 @@ export function processTranscriptLine(
   agent.linesProcessed++;
   try {
     const record = JSON.parse(line);
-    // Background agents' completion notices, as the provider reads them.
+    // Background agents' completion notices, as the provider reads them. They are
+    // applied here, ahead of the record's own handling: one can ride on a user
+    // message, which is also the start of a turn.
     const spawnNotices = hookProvider?.team?.readSpawnNotices?.(record) ?? null;
+    if (spawnNotices) {
+      // Background agents finished. A notice names them by spawn tool id, by
+      // agent (task) id, or both; a crash notice lists several task ids at
+      // once (they died with the process). An interim notice (the agent waits
+      // on its own background work) only pauses its spawn: the runtime ends it
+      // if it never writes again (pausedSpawnFate).
+      const { ended, paused } = readCompletionNotices(agent.backgroundSpawns, spawnNotices.notices);
+      for (const toolId of ended) endBackgroundSpawn(agentId, agent, agents, toolId);
+      const pausedAt = spawnNotices.at ?? Date.now();
+      for (const toolId of paused) {
+        const spawn = agent.backgroundSpawns.get(toolId);
+        if (spawn) spawn.pausedAt = pausedAt;
+      }
+    }
 
     // -- Agent Teams: extract team metadata via the active provider --
     // The provider reads its CLI's own field names (Claude: record.teamName + record.agentName).
@@ -441,19 +457,6 @@ export function processTranscriptLine(
         cancelWaitingTimer(agentId, waitingTimers);
         clearAgentActivity(agent, agentId, agents, permissionTimers);
         agent.hadToolsInTurn = false;
-      }
-    } else if (spawnNotices) {
-      // Background agents finished. A notice names them by spawn tool id, by
-      // agent (task) id, or both; a crash notice lists several task ids at
-      // once (they died with the process). An interim notice (the agent waits
-      // on its own background work) only pauses its spawn: the runtime ends it
-      // if it never writes again (pausedSpawnFate).
-      const { ended, paused } = readCompletionNotices(agent.backgroundSpawns, spawnNotices.notices);
-      for (const toolId of ended) endBackgroundSpawn(agentId, agent, agents, toolId);
-      const pausedAt = spawnNotices.at ?? Date.now();
-      for (const toolId of paused) {
-        const spawn = agent.backgroundSpawns.get(toolId);
-        if (spawn) spawn.pausedAt = pausedAt;
       }
     } else if (record.type === 'system' && record.subtype === 'turn_duration') {
       cancelWaitingTimer(agentId, waitingTimers);
