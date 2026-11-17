@@ -190,6 +190,17 @@ export interface ApplianceSpot {
   kind?: 'drink' | 'game';
 }
 
+/** Where an idle character's next stroll goes (OfficeState.pickOuting). */
+export interface IdleOuting {
+  /** The appliance to use at the end of it, or null for a plain stroll. */
+  errand: ApplianceSpot | null;
+  /** Where a plain stroll ends, or null to end anywhere walkable. */
+  tile: { col: number; row: number } | null;
+  /** The office has somewhere to spend a break (a room with appliances): idle
+   *  characters stay out there instead of going back to rest at their desk. */
+  staysOut: boolean;
+}
+
 export interface Character extends Blinker {
   id: number;
   state: CharacterState;

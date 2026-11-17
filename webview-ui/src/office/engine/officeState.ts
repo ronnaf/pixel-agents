@@ -1,5 +1,6 @@
 import { chooseLook } from '../../../../core/src/paletteUtils.js';
 import {
+  APPLIANCE_ERRAND_CHANCE,
   CHARACTER_HIT_HALF_WIDTH,
   CHARACTER_HIT_HEIGHT,
   CHARACTER_SITTING_OFFSET_PX,
@@ -31,6 +32,7 @@ import type {
   ApplianceSpot,
   Character,
   FurnitureInstance,
+  IdleOuting,
   OfficeLayout,
   Pet,
   PlacedFurniture,
@@ -937,14 +939,34 @@ export class OfficeState {
     this.rebuildFurnitureInstances();
   }
 
-  /** An appliance spot no character is standing on or headed for, or null. */
-  private pickApplianceSpot(): ApplianceSpot | null {
+  /**
+   * Where an idle character's next stroll goes. Most are an errand to a free appliance.
+   * The rest end on a tile of a break room (an Area holding an appliance) when the
+   * office has one, so idle characters gather there and a work room holds only the ones
+   * working in it; without one they end anywhere, and the character rests at its desk
+   * between rounds.
+   */
+  private pickOuting(): IdleOuting {
+    const spots = findApplianceSpots(this.layout.furniture, this.walkableTiles);
+    const areaAt = (tile: { col: number; row: number }) =>
+      this.layout.areaTiles?.[tile.row * this.layout.cols + tile.col] ?? null;
+    const breakRooms = new Set<string | null>(spots.map(areaAt).filter((area) => area !== null));
+    const breakTiles = this.walkableTiles.filter((tile) => breakRooms.has(areaAt(tile)));
+    return {
+      errand: Math.random() < APPLIANCE_ERRAND_CHANCE ? this.pickApplianceSpot(spots) : null,
+      tile:
+        breakTiles.length > 0 ? breakTiles[Math.floor(Math.random() * breakTiles.length)] : null,
+      staysOut: breakTiles.length > 0,
+    };
+  }
+
+  /** One of `spots` that no character is standing on or headed for, or null. */
+  private pickApplianceSpot(spots: ApplianceSpot[]): ApplianceSpot | null {
     const taken = new Set<string>();
     for (const ch of this.characters.values()) {
       taken.add(`${ch.tileCol},${ch.tileRow}`);
       if (ch.errand) taken.add(`${ch.errand.col},${ch.errand.row}`);
     }
-    const spots = findApplianceSpots(this.layout.furniture, this.walkableTiles);
     const isTaken = (spot: ApplianceSpot) => taken.has(`${spot.col},${spot.row}`);
     const free = spots.filter((spot) => !isTaken(spot));
     // Games come first while they have a free end, and one with a player already waiting
@@ -1272,7 +1294,7 @@ export class OfficeState {
             this.seats,
             this.tileMap,
             this.blockedTiles,
-            () => this.pickApplianceSpot(),
+            () => this.pickOuting(),
           ),
         );
       }

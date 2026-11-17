@@ -1,5 +1,4 @@
 import {
-  APPLIANCE_ERRAND_CHANCE,
   APPLIANCE_USE_MAX_SEC,
   APPLIANCE_USE_MIN_SEC,
   DEFAULT_MAX_CONTEXT_TOKENS,
@@ -20,13 +19,7 @@ import {
 import { findPath } from '../layout/tileMap.js';
 import type { CharacterSprites } from '../sprites/spriteData.js';
 import { isReadingToolName } from '../toolUtils.js';
-import type {
-  ApplianceSpot,
-  Character,
-  Seat,
-  SpriteData,
-  TileType as TileTypeVal,
-} from '../types.js';
+import type { Character, IdleOuting, Seat, SpriteData, TileType as TileTypeVal } from '../types.js';
 import { CharacterState, Direction, TILE_SIZE } from '../types.js';
 import { startBlink } from './blink.js';
 
@@ -109,8 +102,8 @@ export function createCharacter(
 }
 
 /**
- * A lead agent for one frame. `pickAppliance` names a free appliance spot for an idle
- * stroll to end at, or null when there is none.
+ * A lead agent for one frame. `pickOuting` says where an idle stroll goes: to a free
+ * appliance, to a tile of the break room, or anywhere.
  */
 export function updateCharacter(
   ch: Character,
@@ -119,7 +112,7 @@ export function updateCharacter(
   seats: Map<string, Seat>,
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
-  pickAppliance: () => ApplianceSpot | null = () => null,
+  pickOuting: () => IdleOuting = () => ({ errand: null, tile: null, staysOut: false }),
 ): void {
   ch.frameTimer += dt;
 
@@ -190,8 +183,10 @@ export function updateCharacter(
       // Countdown wander timer
       ch.wanderTimer -= dt;
       if (ch.wanderTimer <= 0) {
-        // Check if we've wandered enough — return to seat for a rest
-        if (ch.wanderCount >= ch.wanderLimit && ch.seatId) {
+        const outing = pickOuting();
+        // Check if we've wandered enough — return to seat for a rest (unless breaks
+        // are spent out of the seat)
+        if (!outing.staysOut && ch.wanderCount >= ch.wanderLimit && ch.seatId) {
           const seat = seats.get(ch.seatId);
           if (seat) {
             const path = findPath(
@@ -212,10 +207,12 @@ export function updateCharacter(
             }
           }
         }
-        // Most strolls are an errand to an appliance; the rest go anywhere.
-        const errand = Math.random() < APPLIANCE_ERRAND_CHANCE ? pickAppliance() : null;
-        if (errand || walkableTiles.length > 0) {
-          const target = errand ?? walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+        const { errand } = outing;
+        if (errand || outing.tile || walkableTiles.length > 0) {
+          const target =
+            errand ??
+            outing.tile ??
+            walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
           const path = findPath(
             ch.tileCol,
             ch.tileRow,
