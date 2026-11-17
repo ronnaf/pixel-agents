@@ -8,6 +8,7 @@
  */
 import {
   MUSIC_DEFAULT_VOLUME,
+  MUSIC_FORMER_DEFAULT_VOLUME,
   MUSIC_LOOKAHEAD_HIDDEN_SEC,
   MUSIC_LOOKAHEAD_SEC,
   MUSIC_NAME_REROLLS,
@@ -28,7 +29,7 @@ import {
 } from './composer.js';
 import { chooseMood, MOOD_KEYS, type MoodKey, type MoodSetting } from './moods.js';
 import { newSeed } from './rng.js';
-import { parseSongCode } from './songCode.js';
+import { parseSongCode, songCode } from './songCode.js';
 
 const CHANNELS = ['pu1', 'pu2', 'wav', 'noi'] as const;
 type Channel = (typeof CHANNELS)[number];
@@ -58,6 +59,8 @@ interface Stored {
   volume: number;
   mood: MoodSetting;
   hidden: boolean;
+  /** The last tune on the speakers, as its song code: the one the app opens on. */
+  code?: string;
 }
 
 function loadStored(): Stored {
@@ -66,11 +69,14 @@ function loadStored(): Stored {
     const raw = JSON.parse(localStorage.getItem(MUSIC_STORAGE_KEY) ?? '{}') as Partial<Stored>;
     return {
       volume:
-        typeof raw.volume === 'number' ? Math.min(1, Math.max(0, raw.volume)) : fallback.volume,
+        typeof raw.volume === 'number' && raw.volume !== MUSIC_FORMER_DEFAULT_VOLUME
+          ? Math.min(1, Math.max(0, raw.volume))
+          : fallback.volume,
       mood: ['auto', ...MOOD_KEYS].includes(raw.mood as string)
         ? (raw.mood as MoodSetting)
         : fallback.mood,
       hidden: raw.hidden === true,
+      ...(typeof raw.code === 'string' && parseSongCode(raw.code) ? { code: raw.code } : {}),
     };
   } catch {
     return fallback;
@@ -96,6 +102,8 @@ class OfficeRadio {
   private step = 0;
   private nextTime = 0;
   private playing = false;
+  /** A play or pause is under way: a second press meanwhile is dropped, not doubled. */
+  private toggling = false;
   /** When each scheduled tune starts, so the UI shows the one on the speakers. */
   private timeline: Array<{ t: number; song: Song; step: number }> = [];
 
@@ -107,9 +115,11 @@ class OfficeRadio {
   private uiTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    this.current = this.makeNext(null);
+    const last = this.stored.code ? parseSongCode(this.stored.code) : null;
+    this.current = last ? makeSong(last.seed, last.moodKey, null, last.root) : this.makeNext(null);
     this.queued = this.makeNext(this.current);
     this.snapshot = this.buildState(this.current, 0);
+    this.remember(this.current);
     // A page the browser brings back from its cache (back/forward, an app
     // reopened on a phone) keeps this instance: give it a new tune too, like a reload.
     window.addEventListener('pageshow', (e) => {
@@ -126,20 +136,48 @@ class OfficeRadio {
   getState = (): RadioState => this.snapshot;
 
   async toggle(): Promise<void> {
-    if (!this.ac) this.init();
-    const ac = this.ac!;
-    if (this.playing) {
-      this.playing = false;
-      this.stopClock();
-      await ac.suspend();
-    } else {
-      await ac.resume();
-      this.playing = true;
-      if (this.nextTime < ac.currentTime) this.nextTime = ac.currentTime + 0.05;
-      this.schedule();
-      this.startClock();
+    if (this.toggling) return;
+    this.toggling = true;
+    try {
+      if (!this.ac) this.init();
+      const ac = this.ac!;
+      if (this.playing) {
+        this.playing = false;
+        this.stopClock();
+        await ac.suspend();
+      } else {
+        await ac.resume();
+        this.playing = true;
+        if (this.nextTime < ac.currentTime) this.nextTime = ac.currentTime + 0.05;
+        this.schedule();
+        this.startClock();
+      }
+    } finally {
+      this.toggling = false;
     }
     this.refresh();
+  }
+
+  /**
+   * Starts the last tune as the app opens. Where audio may start by itself (an app
+   * window that allows it) it plays at once; a browser holds it until the first click
+   * or key press, and it starts then.
+   */
+  autostart(): void {
+    if (this.stored.hidden || this.playing) return;
+    if (!this.ac) this.init();
+    let begun = false;
+    const begin = () => {
+      if (begun) return;
+      begun = true;
+      window.removeEventListener('click', begin, true);
+      window.removeEventListener('keydown', begin, true);
+      if (!this.playing && !this.stored.hidden) void this.toggle();
+    };
+    // Resolves at once where autoplay is allowed, and otherwise with the first gesture.
+    void this.ac!.resume().then(begin, () => undefined);
+    window.addEventListener('click', begin, true);
+    window.addEventListener('keydown', begin, true);
   }
 
   skip(): void {
@@ -208,8 +246,15 @@ class OfficeRadio {
     this.step = 0;
     this.timeline = [];
     this.snapshot = this.buildState(this.current, 0);
+    this.remember(this.current);
     if (this.playing) this.schedule();
     this.emit();
+  }
+
+  /** Keeps `song` as the tune the app opens on next time. */
+  private remember(song: Song): void {
+    this.stored.code = songCode(song);
+    this.save();
   }
 
   setVolume(v: number): void {
@@ -490,6 +535,7 @@ class OfficeRadio {
     }
     const next = this.buildState(song, step);
     const s = this.snapshot;
+    if (next.song !== s.song) this.remember(next.song);
     if (
       next.song !== s.song ||
       next.playing !== s.playing ||

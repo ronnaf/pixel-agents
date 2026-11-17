@@ -854,7 +854,10 @@ export const MUSIC_SKIP_FADE_SEC = 0.25;
 /** A low-pass over the whole mix that rounds off the square waves. */
 export const MUSIC_TONE_CUTOFF_HZ = 4000;
 /** Starting volume, 0-1. */
-export const MUSIC_DEFAULT_VOLUME = 0.45;
+export const MUSIC_DEFAULT_VOLUME = 0.05;
+/** The default before it was lowered: a stored volume still at it was never chosen,
+ *  only saved along with another setting, so it takes the current default. */
+export const MUSIC_FORMER_DEFAULT_VOLUME = 0.45;
 /** A new tune's name won't repeat any of this many before it (it rerolls up to MUSIC_NAME_REROLLS times). */
 export const MUSIC_RECENT_NAMES = 12;
 export const MUSIC_NAME_REROLLS = 8;

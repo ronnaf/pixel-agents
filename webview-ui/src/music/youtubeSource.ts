@@ -146,6 +146,9 @@ class YouTubeSource {
       progress: 0,
       error: null,
     };
+    // The app opens playing what it last played: a restored link starts by itself where
+    // the window allows autoplay, and waits for its own play button where it doesn't.
+    this.wanted = stored.active;
     // Volume and mute are the radio's; mirror them onto the video.
     officeRadio.subscribe(this.applyVolume);
   }

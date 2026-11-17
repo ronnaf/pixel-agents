@@ -209,6 +209,10 @@ export function MusicPlayer({ mobile }: { mobile: boolean }) {
     setRadioLift(Math.round(reveal * (h + MUSIC_VERSION_GAP_PX)), dragging);
   }, [reveal, dragging, yt.active]);
   useEffect(() => clearRadioLift, []);
+  // The app opens playing its last tune (a restored YouTube link starts itself).
+  useEffect(() => {
+    if (!youtubeSource.getState().active) officeRadio.autostart();
+  }, []);
 
   const { song } = radio;
   if (radio.hidden) return null;
